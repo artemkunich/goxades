@@ -6,7 +6,6 @@ import (
 	"crypto/sha1"
 	"crypto/x509"
 	"encoding/base64"
-	"fmt"
 	"time"
 
 	"github.com/beevik/etree"
@@ -120,7 +119,6 @@ func CreateSignature(signedData *etree.Element, ctx *SigningContext) (*etree.Ele
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(digestData)
 
 	signingTime := ctx.PropertiesContext.SigninigTime
 	if signingTime.IsZero() {
@@ -134,7 +132,6 @@ func CreateSignature(signedData *etree.Element, ctx *SigningContext) (*etree.Ele
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(digestProperties)
 
 	//SignatureValue
 	signedInfo := createSignedInfo(string(digestData), string(digestProperties), ctx)
@@ -147,7 +144,6 @@ func CreateSignature(signedData *etree.Element, ctx *SigningContext) (*etree.Ele
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(signatureValueText)
 
 	signatureValue := createSignatureValue(signatureValueText)
 	keyInfo := createKeyInfo(base64.StdEncoding.EncodeToString(ctx.KeyStore.CertBinary))

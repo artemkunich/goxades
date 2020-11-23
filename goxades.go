@@ -19,6 +19,7 @@ const (
 )
 
 const (
+	SignedPropertiesTag          string = "SignedProperties"
 	SignedSignaturePropertiesTag string = "SignedSignatureProperties"
 	SigningTimeTag               string = "SigningTime"
 	SigningCertificateTag        string = "SigningCertificate"
@@ -26,6 +27,11 @@ const (
 	IssuerSerialTag              string = "IssuerSerial"
 	CertDigestTag                string = "CertDigest"
 	QualifyingPropertiesTag      string = "QualifyingProperties"
+)
+
+const (
+	signedPropertiesAttr string = "SignedProperties"
+	targetAttr           string = "Target"
 )
 
 var digestAlgorithmIdentifiers = map[crypto.Hash]string{
@@ -175,7 +181,7 @@ func createSignedInfo(digestValueDataText string, digestValuePropertiesText stri
 			Space: xmldsigPrefix,
 			Tag:   dsig.TransformTag,
 			Attr: []etree.Attr{
-				{Key: dsig.AlgorithmAttr, Value: "http://www.w3.org/2000/09/xmldsig#enveloped-signature"},
+				{Key: dsig.AlgorithmAttr, Value: dsig.EnvelopedSignatureAltorithmId.String()},
 			},
 		}
 	}
@@ -320,7 +326,7 @@ func createObject(signedProperties *etree.Element) *etree.Element {
 		Tag:   QualifyingPropertiesTag,
 		Attr: []etree.Attr{
 			{Space: "xmlns", Key: Prefix, Value: Namespace},
-			{Key: "Target", Value: "#Signature"},
+			{Key: targetAttr, Value: "#Signature"},
 		},
 		Child: []etree.Token{signedProperties},
 	}
@@ -410,7 +416,7 @@ func createSignedProperties(keystore *MemoryX509KeyStore, signTime time.Time) *e
 
 	signedProperties := etree.Element{
 		Space: Prefix,
-		Tag:   "SignedProperties",
+		Tag:   SignedPropertiesTag,
 		Attr: []etree.Attr{
 			{Key: "Id", Value: "SignedProperties"},
 		},

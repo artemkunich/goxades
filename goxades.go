@@ -13,9 +13,8 @@ import (
 )
 
 const (
-	xmldsigPrefix string = ""
-	Prefix        string = "xades"
-	Namespace     string = "http://uri.etsi.org/01903/v1.3.2#"
+	Prefix    string = "xades"
+	Namespace string = "http://uri.etsi.org/01903/v1.3.2#"
 )
 
 const (
@@ -52,6 +51,7 @@ type SigningContext struct {
 	Canonicalizer     dsig.Canonicalizer
 	Hash              crypto.Hash
 	KeyStore          MemoryX509KeyStore
+	XmlDsigPrefix     string
 }
 
 type SignedDataContext struct {
@@ -67,19 +67,19 @@ type SignedPropertiesContext struct {
 	SigninigTime  time.Time
 }
 
-//MemoryX509KeyStore struct
+// MemoryX509KeyStore struct
 type MemoryX509KeyStore struct {
 	PrivateKey *rsa.PrivateKey
 	Cert       *x509.Certificate
 	CertBinary []byte
 }
 
-//GetKeyPair func
+// GetKeyPair func
 func (ks *MemoryX509KeyStore) GetKeyPair() (*rsa.PrivateKey, []byte, error) {
 	return ks.PrivateKey, ks.CertBinary, nil
 }
 
-//DigestValue calculate hash for digest
+// DigestValue calculate hash for digest
 func DigestValue(element *etree.Element, canonicalizer *dsig.Canonicalizer, hash crypto.Hash) (base64encoded string, err error) {
 
 	canonical, err := (*canonicalizer).Canonicalize(element)
@@ -97,7 +97,7 @@ func DigestValue(element *etree.Element, canonicalizer *dsig.Canonicalizer, hash
 	return
 }
 
-//SignatureValue calculate signature
+// SignatureValue calculate signature
 func SignatureValue(element *etree.Element, canonicalizer *dsig.Canonicalizer, hash crypto.Hash, keyStore *MemoryX509KeyStore) (base64encoded string, err error) {
 
 	canonical, err := (*canonicalizer).Canonicalize(element)
@@ -117,7 +117,7 @@ func SignatureValue(element *etree.Element, canonicalizer *dsig.Canonicalizer, h
 	return
 }
 
-//CreateSignature create filled signature element
+// CreateSignature create filled signature element
 func CreateSignature(signedData *etree.Element, ctx *SigningContext) (*etree.Element, error) {
 
 	//DigestValue of signedData
@@ -131,8 +131,8 @@ func CreateSignature(signedData *etree.Element, ctx *SigningContext) (*etree.Ele
 		signingTime = time.Now()
 	}
 	//DigestValue of signedProperties
-	signedProperties := createSignedProperties(&ctx.KeyStore, signingTime)
-	qualifiedSignedProperties := createQualifiedSignedProperties(signedProperties)
+	signedProperties := createSignedProperties(&ctx.KeyStore, signingTime, ctx.XmlDsigPrefix)
+	qualifiedSignedProperties := createQualifiedSignedProperties(signedProperties, ctx.XmlDsigPrefix)
 
 	digestProperties, err := DigestValue(qualifiedSignedProperties, &ctx.PropertiesContext.Canonicalizer, ctx.PropertiesContext.Hash)
 	if err != nil {
@@ -141,7 +141,7 @@ func CreateSignature(signedData *etree.Element, ctx *SigningContext) (*etree.Ele
 
 	//SignatureValue
 	signedInfo := createSignedInfo(string(digestData), string(digestProperties), ctx)
-	qualifiedSignedInfo := createQualifiedSignedInfo(signedInfo)
+	qualifiedSignedInfo := createQualifiedSignedInfo(signedInfo, ctx.XmlDsigPrefix)
 
 	if err != nil {
 		return nil, err
@@ -151,26 +151,26 @@ func CreateSignature(signedData *etree.Element, ctx *SigningContext) (*etree.Ele
 		return nil, err
 	}
 
-	signatureValue := createSignatureValue(signatureValueText)
-	keyInfo := createKeyInfo(base64.StdEncoding.EncodeToString(ctx.KeyStore.CertBinary))
-	object := createObject(signedProperties)
+	signatureValue := createSignatureValue(signatureValueText, ctx.XmlDsigPrefix)
+	keyInfo := createKeyInfo(base64.StdEncoding.EncodeToString(ctx.KeyStore.CertBinary), ctx.XmlDsigPrefix)
+	object := createObject(signedProperties, ctx.XmlDsigPrefix)
 
 	signature := etree.Element{
-		Space: xmldsigPrefix,
+		Space: ctx.XmlDsigPrefix,
 		Tag:   dsig.SignatureTag,
 		Attr: []etree.Attr{
 			{Key: "Id", Value: "Signature"},
-			{Key: "xmlns", Value: dsig.Namespace},
-			//{Space: "xmlns", Key: xmldsigPrefix, Value: dsig.Namespace},
+			//{Key: "xmlns", Value: dsig.Namespace},
+			{Space: "xmlns", Key: ctx.XmlDsigPrefix, Value: dsig.Namespace},
 		},
 		Child: []etree.Token{signedInfo, signatureValue, keyInfo, object},
 	}
 	return &signature, nil
 }
 
-func createQualifiedSignedInfo(signedInfo *etree.Element) *etree.Element {
+func createQualifiedSignedInfo(signedInfo *etree.Element, xmlDsigPrefix string) *etree.Element {
 	qualifiedSignedInfo := signedInfo.Copy()
-	qualifiedSignedInfo.Attr = append(qualifiedSignedInfo.Attr, etree.Attr{Space: "xmlns", Key: xmldsigPrefix, Value: dsig.Namespace})
+	qualifiedSignedInfo.Attr = append(qualifiedSignedInfo.Attr, etree.Attr{Space: "xmlns", Key: xmlDsigPrefix, Value: dsig.Namespace})
 	return qualifiedSignedInfo
 }
 func createSignedInfo(digestValueDataText string, digestValuePropertiesText string, ctx *SigningContext) *etree.Element {
@@ -178,7 +178,7 @@ func createSignedInfo(digestValueDataText string, digestValuePropertiesText stri
 	var transformEnvSign etree.Element
 	if ctx.DataContext.IsEnveloped {
 		transformEnvSign = etree.Element{
-			Space: xmldsigPrefix,
+			Space: ctx.XmlDsigPrefix,
 			Tag:   dsig.TransformTag,
 			Attr: []etree.Attr{
 				{Key: dsig.AlgorithmAttr, Value: dsig.EnvelopedSignatureAltorithmId.String()},
@@ -187,7 +187,7 @@ func createSignedInfo(digestValueDataText string, digestValuePropertiesText stri
 	}
 
 	transformData := etree.Element{
-		Space: xmldsigPrefix,
+		Space: ctx.XmlDsigPrefix,
 		Tag:   dsig.TransformTag,
 		Attr: []etree.Attr{
 			{Key: dsig.AlgorithmAttr, Value: ctx.DataContext.Canonicalizer.Algorithm().String()}, // "http://www.w3.org/2001/10/xml-exc-c14n#"},
@@ -195,7 +195,7 @@ func createSignedInfo(digestValueDataText string, digestValuePropertiesText stri
 	}
 
 	transformProperties := etree.Element{
-		Space: xmldsigPrefix,
+		Space: ctx.XmlDsigPrefix,
 		Tag:   dsig.TransformTag,
 		Attr: []etree.Attr{
 			{Key: dsig.AlgorithmAttr, Value: ctx.PropertiesContext.Canonicalizer.Algorithm().String()}, // "http://www.w3.org/2001/10/xml-exc-c14n#"},
@@ -203,7 +203,7 @@ func createSignedInfo(digestValueDataText string, digestValuePropertiesText stri
 	}
 
 	transformsData := etree.Element{
-		Space: xmldsigPrefix,
+		Space: ctx.XmlDsigPrefix,
 		Tag:   dsig.TransformsTag,
 	}
 	if ctx.DataContext.IsEnveloped {
@@ -212,7 +212,7 @@ func createSignedInfo(digestValueDataText string, digestValuePropertiesText stri
 	transformsData.AddChild(&transformData)
 
 	digestMethodData := etree.Element{
-		Space: xmldsigPrefix,
+		Space: ctx.XmlDsigPrefix,
 		Tag:   dsig.DigestMethodTag,
 		Attr: []etree.Attr{
 			{Key: dsig.AlgorithmAttr, Value: digestAlgorithmIdentifiers[ctx.DataContext.Hash]},
@@ -220,7 +220,7 @@ func createSignedInfo(digestValueDataText string, digestValuePropertiesText stri
 	}
 
 	digestMethodProperties := etree.Element{
-		Space: xmldsigPrefix,
+		Space: ctx.XmlDsigPrefix,
 		Tag:   dsig.DigestMethodTag,
 		Attr: []etree.Attr{
 			{Key: dsig.AlgorithmAttr, Value: digestAlgorithmIdentifiers[ctx.PropertiesContext.Hash]},
@@ -228,25 +228,25 @@ func createSignedInfo(digestValueDataText string, digestValuePropertiesText stri
 	}
 
 	digestValueData := etree.Element{
-		Space: xmldsigPrefix,
+		Space: ctx.XmlDsigPrefix,
 		Tag:   dsig.DigestValueTag,
 	}
 	digestValueData.SetText(digestValueDataText)
 
 	transformsProperties := etree.Element{
-		Space: xmldsigPrefix,
+		Space: ctx.XmlDsigPrefix,
 		Tag:   dsig.TransformsTag,
 		Child: []etree.Token{&transformProperties},
 	}
 
 	digestValueProperties := etree.Element{
-		Space: xmldsigPrefix,
+		Space: ctx.XmlDsigPrefix,
 		Tag:   dsig.DigestValueTag,
 	}
 	digestValueProperties.SetText(digestValuePropertiesText)
 
 	canonicalizationMethod := etree.Element{
-		Space: xmldsigPrefix,
+		Space: ctx.XmlDsigPrefix,
 		Tag:   dsig.CanonicalizationMethodTag,
 		Attr: []etree.Attr{
 			{Key: dsig.AlgorithmAttr, Value: ctx.Canonicalizer.Algorithm().String()},
@@ -254,7 +254,7 @@ func createSignedInfo(digestValueDataText string, digestValuePropertiesText stri
 	}
 
 	signatureMethod := etree.Element{
-		Space: xmldsigPrefix,
+		Space: ctx.XmlDsigPrefix,
 		Tag:   dsig.SignatureMethodTag,
 		Attr: []etree.Attr{
 			{Key: dsig.AlgorithmAttr, Value: signatureMethodIdentifiers[ctx.Hash]},
@@ -262,7 +262,7 @@ func createSignedInfo(digestValueDataText string, digestValuePropertiesText stri
 	}
 
 	referenceData := etree.Element{
-		Space: xmldsigPrefix,
+		Space: ctx.XmlDsigPrefix,
 		Tag:   dsig.ReferenceTag,
 		Attr: []etree.Attr{
 			{Key: dsig.URIAttr, Value: ctx.DataContext.ReferenceURI},
@@ -271,7 +271,7 @@ func createSignedInfo(digestValueDataText string, digestValuePropertiesText stri
 	}
 
 	referenceProperties := etree.Element{
-		Space: xmldsigPrefix,
+		Space: ctx.XmlDsigPrefix,
 		Tag:   dsig.ReferenceTag,
 		Attr: []etree.Attr{
 			{Key: dsig.URIAttr, Value: "#SignedProperties"},
@@ -281,7 +281,7 @@ func createSignedInfo(digestValueDataText string, digestValuePropertiesText stri
 	}
 
 	signedInfo := etree.Element{
-		Space: xmldsigPrefix,
+		Space: ctx.XmlDsigPrefix,
 		Tag:   dsig.SignedInfoTag,
 		Child: []etree.Token{&canonicalizationMethod, &signatureMethod, &referenceData, &referenceProperties},
 	}
@@ -289,37 +289,37 @@ func createSignedInfo(digestValueDataText string, digestValuePropertiesText stri
 	return &signedInfo
 }
 
-func createSignatureValue(base64Signature string) *etree.Element {
+func createSignatureValue(base64Signature string, xmlDsigPrefix string) *etree.Element {
 	signatureValue := etree.Element{
-		Space: xmldsigPrefix,
+		Space: xmlDsigPrefix,
 		Tag:   dsig.SignatureValueTag,
 	}
 	signatureValue.SetText(base64Signature)
 	return &signatureValue
 }
 
-func createKeyInfo(base64Certificate string) *etree.Element {
+func createKeyInfo(base64Certificate string, xmlDsigPrefix string) *etree.Element {
 
 	x509Cerificate := etree.Element{
-		Space: xmldsigPrefix,
+		Space: xmlDsigPrefix,
 		Tag:   dsig.X509CertificateTag,
 	}
 	x509Cerificate.SetText(base64Certificate)
 
 	x509Data := etree.Element{
-		Space: xmldsigPrefix,
+		Space: xmlDsigPrefix,
 		Tag:   dsig.X509DataTag,
 		Child: []etree.Token{&x509Cerificate},
 	}
 	keyInfo := etree.Element{
-		Space: xmldsigPrefix,
+		Space: xmlDsigPrefix,
 		Tag:   dsig.KeyInfoTag,
 		Child: []etree.Token{&x509Data},
 	}
 	return &keyInfo
 }
 
-func createObject(signedProperties *etree.Element) *etree.Element {
+func createObject(signedProperties *etree.Element, xmlDsigPrefix string) *etree.Element {
 
 	qualifyingProperties := etree.Element{
 		Space: Prefix,
@@ -331,29 +331,29 @@ func createObject(signedProperties *etree.Element) *etree.Element {
 		Child: []etree.Token{signedProperties},
 	}
 	object := etree.Element{
-		Space: xmldsigPrefix,
+		Space: xmlDsigPrefix,
 		Tag:   "Object",
 		Child: []etree.Token{&qualifyingProperties},
 	}
 	return &object
 }
 
-func createQualifiedSignedProperties(signedProperties *etree.Element) *etree.Element {
+func createQualifiedSignedProperties(signedProperties *etree.Element, xmlDsigPrefix string) *etree.Element {
 
 	qualifiedSignedProperties := signedProperties.Copy()
 	qualifiedSignedProperties.Attr = append(
 		signedProperties.Attr,
-		etree.Attr{Space: "xmlns", Key: xmldsigPrefix, Value: dsig.Namespace},
+		etree.Attr{Space: "xmlns", Key: xmlDsigPrefix, Value: dsig.Namespace},
 		etree.Attr{Space: "xmlns", Key: Prefix, Value: Namespace},
 	)
 
 	return qualifiedSignedProperties
 }
 
-func createSignedProperties(keystore *MemoryX509KeyStore, signTime time.Time) *etree.Element {
+func createSignedProperties(keystore *MemoryX509KeyStore, signTime time.Time, xmlDsigPrefix string) *etree.Element {
 
 	digestMethod := etree.Element{
-		Space: xmldsigPrefix,
+		Space: xmlDsigPrefix,
 		Tag:   dsig.DigestMethodTag,
 		Attr: []etree.Attr{
 			{Key: dsig.AlgorithmAttr, Value: digestAlgorithmIdentifiers[crypto.SHA1]},
@@ -361,7 +361,7 @@ func createSignedProperties(keystore *MemoryX509KeyStore, signTime time.Time) *e
 	}
 
 	digestValue := etree.Element{
-		Space: xmldsigPrefix,
+		Space: xmlDsigPrefix,
 		Tag:   dsig.DigestValueTag,
 	}
 	hash := sha1.Sum(keystore.CertBinary)
@@ -374,12 +374,12 @@ func createSignedProperties(keystore *MemoryX509KeyStore, signTime time.Time) *e
 	}
 
 	x509IssuerName := etree.Element{
-		Space: xmldsigPrefix,
+		Space: xmlDsigPrefix,
 		Tag:   "X509IssuerName",
 	}
 	x509IssuerName.SetText(keystore.Cert.Issuer.String())
 	x509SerialNumber := etree.Element{
-		Space: xmldsigPrefix,
+		Space: xmlDsigPrefix,
 		Tag:   "X509SerialNumber",
 	}
 	x509SerialNumber.SetText(keystore.Cert.SerialNumber.String())

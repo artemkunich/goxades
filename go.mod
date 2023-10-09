@@ -1,4 +1,4 @@
-module github.com/artemkunich/goxades
+module github.com/julopez747/goxades
 
 go 1.15
 

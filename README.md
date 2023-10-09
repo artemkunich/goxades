@@ -1,5 +1,9 @@
 # goxades
-Implementation of XAdES signature in golang
+Implementation of XAdES signature in golang. 
+
+Forked from [goxades](https://github.com/artemkunich/goxades) and added namespace support.
+
+
 
 ## Installation
 

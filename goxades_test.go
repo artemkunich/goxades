@@ -146,6 +146,58 @@ func getSigningContextMap(t *testing.T) (ctxMap map[*SigningContext]string) {
 	return
 }
 
+func getSigningContextNamespacePrefixMap(t *testing.T) (ctxMap map[*SigningContext]string) {
+
+	ctxMap = make(map[*SigningContext]string)
+
+	keyStore, err := getTestKeyStore()
+	require.NoError(t, err)
+
+	signingTime, err := time.Parse("2006-01-02T15:04:05Z", "2020-01-01T00:00:00Z")
+	require.NoError(t, err)
+
+	c14N10ExclusiveCanonicalizer := dsig.MakeC14N10ExclusiveCanonicalizerWithPrefixList("")
+
+	ctx := &SigningContext{
+		DataContext: SignedDataContext{
+			Canonicalizer: c14N10ExclusiveCanonicalizer,
+			Hash:          crypto.SHA256,
+			IsEnveloped:   true,
+			ReferenceURI:  "#signedData",
+		},
+		PropertiesContext: SignedPropertiesContext{
+			Canonicalizer: c14N10ExclusiveCanonicalizer,
+			Hash:          crypto.SHA256,
+			SigninigTime:  signingTime,
+		},
+		Canonicalizer: c14N10ExclusiveCanonicalizer,
+		Hash:          crypto.SHA256,
+		KeyStore:      *keyStore,
+		XmlDsigPrefix: "ds",
+	}
+	ctxMap[ctx] = "lFQkrk5ZfFxGoIkUR2XMWwFbGhv4n6oLw+/KIUM+JcEnVM8ebr47d7lpM2vviBa5zCR/IgK3nB/CIjPcgA0v5KILKp0K9M7PNL5IikxDVu7l1PVcAUaQG7NhMrwNTiY6g5EhLCIkv04q1jTXWCaCyYdRf1IMpgc1LN6v2CfRIl3xfOqUY/cBsp8jRP8LTtU5H7OeNjVmRjrCyUmKgfTnNJOG0oxhadzqs4/MIJgMoz5090k4NXFRM+JW/g/adXMa45kNcLhkyXEH/co/wRN4UsR9Se/X+gh1bFDhOiqyyzveOKCxWACJR8+vF1ao5LWy+kWGkzUCEg81ouqxqWYgOw=="
+
+	ctx = &SigningContext{
+		DataContext: SignedDataContext{
+			Canonicalizer: c14N10ExclusiveCanonicalizer,
+			Hash:          crypto.SHA1,
+			ReferenceURI:  "#signedData",
+		},
+		PropertiesContext: SignedPropertiesContext{
+			Canonicalizer: c14N10ExclusiveCanonicalizer,
+			Hash:          crypto.SHA1,
+			SigninigTime:  signingTime,
+		},
+		Canonicalizer: c14N10ExclusiveCanonicalizer,
+		Hash:          crypto.SHA256,
+		KeyStore:      *keyStore,
+		XmlDsigPrefix: "ds",
+	}
+	ctxMap[ctx] = "tGaU8GC1mfQgHlJJUznKLIvUEGZqfjp7VyatB71ctAlUMrdqDlzbYAGoFQE5jru+z/OxBvKFiSK9cYP85Y2YXajm6cdnNumtA7nfrBhQoldeoKQZZvqVoPBsL48YzDpBLutnRrqcBzsYiUs8PGpLaciwIKFaHIFEl6H7Z4W4wGsdAn99IFOmeAdo403z6AerYrZgZQeEpiI86Z5OIHbem6lqxf/DPW4BNWYbREVH7srPsU1jGPhZKDInUJJ4iBiuGXWV9O15FE97VDjleQQtB8rC30dZFcFQyv9ML6NPIntwBw+KqXmb8ThKyi3qqD3qIaKDTCecoaJXktvWiRvYMw=="
+
+	return
+}
+
 func TestSignature(t *testing.T) {
 	doc := etree.NewDocument()
 	err := doc.ReadFromString(testXML)
@@ -161,7 +213,23 @@ func TestSignature(t *testing.T) {
 	}
 }
 
+func TestNamespacePrefixSignature(t *testing.T) {
+	doc := etree.NewDocument()
+	err := doc.ReadFromString(testXML)
+	require.NoError(t, err)
+
+	signedData := doc.Root()
+
+	ctxMap := getSigningContextNamespacePrefixMap(t)
+
+	for ctx, signatureValue := range ctxMap {
+		testSignature(t, signedData, ctx)
+		testSignatureValue(t, signedData, ctx, signatureValue)
+	}
+}
+
 func testSignature(t *testing.T, signedData *etree.Element, ctx *SigningContext) {
+	xmldsigPrefix := ctx.XmlDsigPrefix
 	signature, err := CreateSignature(signedData, ctx)
 	require.NoError(t, err)
 
@@ -177,12 +245,12 @@ func testSignature(t *testing.T, signedData *etree.Element, ctx *SigningContext)
 	testKeyInfo(t, keyInfo, ctx)
 
 	object := signature.FindElement(xmldsigPrefix + ":" + "Object")
-	require.NotEmpty(t, keyInfo)
+	require.NotEmpty(t, object)
 	testObject(t, object, ctx)
 }
 
 func testSignedInfo(t *testing.T, signedInfo *etree.Element, ctx *SigningContext) {
-
+	xmldsigPrefix := ctx.XmlDsigPrefix
 	canonicalizationMethodElement := signedInfo.FindElement(xmldsigPrefix + ":" + dsig.CanonicalizationMethodTag)
 	require.NotEmpty(t, canonicalizationMethodElement)
 
@@ -200,12 +268,12 @@ func testSignedInfo(t *testing.T, signedInfo *etree.Element, ctx *SigningContext
 	referenceElements := signedInfo.FindElements(xmldsigPrefix + ":" + dsig.ReferenceTag)
 	require.NotEmpty(t, referenceElements)
 	require.Len(t, referenceElements, 2)
-	testReferenceData(t, referenceElements[0], &ctx.DataContext)
-	testReferenceProperties(t, referenceElements[1], &ctx.PropertiesContext)
+	testReferenceData(t, referenceElements[0], &ctx.DataContext, ctx.XmlDsigPrefix)
+	testReferenceProperties(t, referenceElements[1], &ctx.PropertiesContext, ctx.XmlDsigPrefix)
 
 }
 
-func testReferenceData(t *testing.T, referenceElement *etree.Element, ctx *SignedDataContext) {
+func testReferenceData(t *testing.T, referenceElement *etree.Element, ctx *SignedDataContext, xmldsigPrefix string) {
 	idAttr := referenceElement.SelectAttr(":" + dsig.URIAttr)
 	require.NotEmpty(t, idAttr)
 	require.Equal(t, ctx.ReferenceURI, idAttr.Value)
@@ -241,7 +309,7 @@ func testReferenceData(t *testing.T, referenceElement *etree.Element, ctx *Signe
 	require.NotEmpty(t, digestValue)
 }
 
-func testReferenceProperties(t *testing.T, referenceElement *etree.Element, ctx *SignedPropertiesContext) {
+func testReferenceProperties(t *testing.T, referenceElement *etree.Element, ctx *SignedPropertiesContext, xmldsigPrefix string) {
 	idAttr := referenceElement.SelectAttr(":" + dsig.URIAttr)
 	require.NotEmpty(t, idAttr)
 	require.Equal(t, "#SignedProperties", idAttr.Value)
@@ -268,6 +336,7 @@ func testReferenceProperties(t *testing.T, referenceElement *etree.Element, ctx 
 }
 
 func testKeyInfo(t *testing.T, keyInfo *etree.Element, ctx *SigningContext) {
+	xmldsigPrefix := ctx.XmlDsigPrefix
 	x509Data := keyInfo.FindElement(xmldsigPrefix + ":" + dsig.X509DataTag)
 	require.NotEmpty(t, x509Data)
 
@@ -277,6 +346,7 @@ func testKeyInfo(t *testing.T, keyInfo *etree.Element, ctx *SigningContext) {
 }
 
 func testObject(t *testing.T, keyInfo *etree.Element, ctx *SigningContext) {
+	xmldsigPrefix := ctx.XmlDsigPrefix
 	qualifyingProperties := keyInfo.FindElement(Prefix + ":" + QualifyingPropertiesTag)
 	require.NotEmpty(t, qualifyingProperties)
 	//require.Equal(t, Prefix, qualifyingProperties.Space)
@@ -341,6 +411,7 @@ func testObject(t *testing.T, keyInfo *etree.Element, ctx *SigningContext) {
 }
 
 func testSignatureValue(t *testing.T, signedData *etree.Element, ctx *SigningContext, expectedValue string) {
+	xmldsigPrefix := ctx.XmlDsigPrefix
 	signature, err := CreateSignature(signedData, ctx)
 	require.NoError(t, err)
 

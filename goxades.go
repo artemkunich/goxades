@@ -159,7 +159,7 @@ func CreateSignature(signedData *etree.Element, ctx *SigningContext) (*etree.Ele
 	keyInfo := createKeyInfo(base64.StdEncoding.EncodeToString(ctx.KeyStore.CertBinary), ctx.XmlDsigPrefix)
 	object := createObject(signedProperties, ctx)
 
-	signatureIdPrefix, err := computeSignatureIdPrefix(ctx)
+	signatureIdPrefix, err := createSignatureIdPrefix(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -279,7 +279,7 @@ func createSignedInfo(digestValueDataText string, digestValuePropertiesText stri
 		Child: []etree.Token{&transformsData, &digestMethodData, &digestValueData},
 	}
 
-	signatureIdPrefix, _ := computeSignatureIdPrefix(ctx)
+	signatureIdPrefix, _ := createSignatureIdPrefix(ctx)
 	referenceProperties := etree.Element{
 		Space: ctx.XmlDsigPrefix,
 		Tag:   dsig.ReferenceTag,
@@ -331,7 +331,7 @@ func createKeyInfo(base64Certificate string, xmlDsigPrefix string) *etree.Elemen
 
 func createObject(signedProperties *etree.Element, ctx *SigningContext) *etree.Element {
 
-	signatureIdPrefix, _ := computeSignatureIdPrefix(ctx)
+	signatureIdPrefix, _ := createSignatureIdPrefix(ctx)
 
 	qualifyingProperties := etree.Element{
 		Space: Prefix,
@@ -427,7 +427,7 @@ func createSignedProperties(keystore *MemoryX509KeyStore, signTime time.Time, ct
 		Child: []etree.Token{&signingTime, &signingCertificate},
 	}
 
-	signatureIdPrefix, _ := computeSignatureIdPrefix(ctx)
+	signatureIdPrefix, _ := createSignatureIdPrefix(ctx)
 
 	signedProperties := etree.Element{
 		Space: Prefix,
@@ -441,7 +441,7 @@ func createSignedProperties(keystore *MemoryX509KeyStore, signTime time.Time, ct
 	return &signedProperties
 }
 
-func computeSignatureIdPrefix(ctx *SigningContext) (signatureIdPrefix string, err error) {
+func createSignatureIdPrefix(ctx *SigningContext) (signatureIdPrefix string, err error) {
 	signatureIdPrefix = ""
 	if ctx.UseSignatureUuid {
 		if ctx.SignatureUuid == nil {

@@ -6,9 +6,11 @@ import (
 	"crypto/sha1"
 	"crypto/x509"
 	"encoding/base64"
+	"fmt"
 	"time"
 
 	"github.com/beevik/etree"
+	"github.com/google/uuid"
 	dsig "github.com/russellhaering/goxmldsig"
 )
 
@@ -52,6 +54,8 @@ type SigningContext struct {
 	Hash              crypto.Hash
 	KeyStore          MemoryX509KeyStore
 	XmlDsigPrefix     string
+	SignatureUuid     *uuid.UUID
+	UseSignatureUuid  bool
 }
 
 type SignedDataContext struct {
@@ -131,7 +135,7 @@ func CreateSignature(signedData *etree.Element, ctx *SigningContext) (*etree.Ele
 		signingTime = time.Now()
 	}
 	//DigestValue of signedProperties
-	signedProperties := createSignedProperties(&ctx.KeyStore, signingTime, ctx.XmlDsigPrefix)
+	signedProperties := createSignedProperties(&ctx.KeyStore, signingTime, ctx)
 	qualifiedSignedProperties := createQualifiedSignedProperties(signedProperties, ctx.XmlDsigPrefix)
 
 	digestProperties, err := DigestValue(qualifiedSignedProperties, &ctx.PropertiesContext.Canonicalizer, ctx.PropertiesContext.Hash)
@@ -153,13 +157,18 @@ func CreateSignature(signedData *etree.Element, ctx *SigningContext) (*etree.Ele
 
 	signatureValue := createSignatureValue(signatureValueText, ctx.XmlDsigPrefix)
 	keyInfo := createKeyInfo(base64.StdEncoding.EncodeToString(ctx.KeyStore.CertBinary), ctx.XmlDsigPrefix)
-	object := createObject(signedProperties, ctx.XmlDsigPrefix)
+	object := createObject(signedProperties, ctx)
+
+	signatureIdPrefix, err := createSignatureIdPrefix(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	signature := etree.Element{
 		Space: ctx.XmlDsigPrefix,
 		Tag:   dsig.SignatureTag,
 		Attr: []etree.Attr{
-			{Key: "Id", Value: "Signature"},
+			{Key: "Id", Value: signatureIdPrefix + "Signature"},
 			//{Key: "xmlns", Value: dsig.Namespace},
 			{Space: "xmlns", Key: ctx.XmlDsigPrefix, Value: dsig.Namespace},
 		},
@@ -270,11 +279,12 @@ func createSignedInfo(digestValueDataText string, digestValuePropertiesText stri
 		Child: []etree.Token{&transformsData, &digestMethodData, &digestValueData},
 	}
 
+	signatureIdPrefix, _ := createSignatureIdPrefix(ctx)
 	referenceProperties := etree.Element{
 		Space: ctx.XmlDsigPrefix,
 		Tag:   dsig.ReferenceTag,
 		Attr: []etree.Attr{
-			{Key: dsig.URIAttr, Value: "#SignedProperties"},
+			{Key: dsig.URIAttr, Value: fmt.Sprintf("#%vSignedProperties", signatureIdPrefix)},
 			{Key: "Type", Value: "http://uri.etsi.org/01903#SignedProperties"},
 		},
 		Child: []etree.Token{&transformsProperties, &digestMethodProperties, &digestValueProperties},
@@ -319,19 +329,21 @@ func createKeyInfo(base64Certificate string, xmlDsigPrefix string) *etree.Elemen
 	return &keyInfo
 }
 
-func createObject(signedProperties *etree.Element, xmlDsigPrefix string) *etree.Element {
+func createObject(signedProperties *etree.Element, ctx *SigningContext) *etree.Element {
+
+	signatureIdPrefix, _ := createSignatureIdPrefix(ctx)
 
 	qualifyingProperties := etree.Element{
 		Space: Prefix,
 		Tag:   QualifyingPropertiesTag,
 		Attr: []etree.Attr{
 			{Space: "xmlns", Key: Prefix, Value: Namespace},
-			{Key: targetAttr, Value: "#Signature"},
+			{Key: targetAttr, Value: fmt.Sprintf("#%vSignature", signatureIdPrefix)},
 		},
 		Child: []etree.Token{signedProperties},
 	}
 	object := etree.Element{
-		Space: xmlDsigPrefix,
+		Space: ctx.XmlDsigPrefix,
 		Tag:   "Object",
 		Child: []etree.Token{&qualifyingProperties},
 	}
@@ -350,7 +362,8 @@ func createQualifiedSignedProperties(signedProperties *etree.Element, xmlDsigPre
 	return qualifiedSignedProperties
 }
 
-func createSignedProperties(keystore *MemoryX509KeyStore, signTime time.Time, xmlDsigPrefix string) *etree.Element {
+func createSignedProperties(keystore *MemoryX509KeyStore, signTime time.Time, ctx *SigningContext) *etree.Element {
+	xmlDsigPrefix := ctx.XmlDsigPrefix
 
 	digestMethod := etree.Element{
 		Space: xmlDsigPrefix,
@@ -414,14 +427,33 @@ func createSignedProperties(keystore *MemoryX509KeyStore, signTime time.Time, xm
 		Child: []etree.Token{&signingTime, &signingCertificate},
 	}
 
+	signatureIdPrefix, _ := createSignatureIdPrefix(ctx)
+
 	signedProperties := etree.Element{
 		Space: Prefix,
 		Tag:   SignedPropertiesTag,
 		Attr: []etree.Attr{
-			{Key: "Id", Value: "SignedProperties"},
+			{Key: "Id", Value: signatureIdPrefix + "SignedProperties"},
 		},
 		Child: []etree.Token{&signedSignatureProperties},
 	}
 
 	return &signedProperties
+}
+
+func createSignatureIdPrefix(ctx *SigningContext) (signatureIdPrefix string, err error) {
+	signatureIdPrefix = ""
+	if ctx.UseSignatureUuid {
+		if ctx.SignatureUuid == nil {
+			signatureUuid, uuidErr := uuid.NewUUID()
+			if uuidErr != nil {
+				err = uuidErr
+				return
+			}
+			ctx.SignatureUuid = &signatureUuid
+
+		}
+		signatureIdPrefix = fmt.Sprintf("Signature-%v-", ctx.SignatureUuid.String())
+	}
+	return
 }

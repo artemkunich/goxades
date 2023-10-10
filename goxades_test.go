@@ -6,10 +6,12 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/beevik/etree"
+	"github.com/google/uuid"
 	dsig "github.com/russellhaering/goxmldsig"
 	"github.com/stretchr/testify/require"
 )
@@ -120,9 +122,10 @@ func getSigningContextMap(t *testing.T) (ctxMap map[*SigningContext]string) {
 			Hash:          crypto.SHA256,
 			SigninigTime:  signingTime,
 		},
-		Canonicalizer: c14N10ExclusiveCanonicalizer,
-		Hash:          crypto.SHA256,
-		KeyStore:      *keyStore,
+		Canonicalizer:    c14N10ExclusiveCanonicalizer,
+		Hash:             crypto.SHA256,
+		KeyStore:         *keyStore,
+		UseSignatureUuid: false,
 	}
 	ctxMap[ctx] = "qCBQF0f51nnIa44jR89dgE2KBhnrkq41i0YFYtpIDXQFpzoFubuWLuHbEeP1V8KTImkWkSWzsg2h8sdVaZ7r7E6ABZKyCC4u12aHI/Tzq0yuNP9/VkdIzkKOLRbzPfjQVSZWGjkpOnwA5Q2HsN579oqQovrTikJ+W5At9ux79SOLNmZJFZp5QMC2Hn1fWoBWdXnuwAFLLqhspVpPRZq9qXeVcxwtbWN+Z9KYEt96NLWCgHYAxqrNauN4IJ+dpYPOo3w1NHucsb78PvWCGHlfmBYOgAzGkfqTJ/fqfbBTxeYBWBJKVYvJjlMivLh3Ss/dHSJEvU6pRFLUFXf9D9KHnQ=="
 
@@ -137,9 +140,10 @@ func getSigningContextMap(t *testing.T) (ctxMap map[*SigningContext]string) {
 			Hash:          crypto.SHA1,
 			SigninigTime:  signingTime,
 		},
-		Canonicalizer: c14N10ExclusiveCanonicalizer,
-		Hash:          crypto.SHA256,
-		KeyStore:      *keyStore,
+		Canonicalizer:    c14N10ExclusiveCanonicalizer,
+		Hash:             crypto.SHA256,
+		KeyStore:         *keyStore,
+		UseSignatureUuid: false,
 	}
 	ctxMap[ctx] = "0NjE/1BhL8vRz3bKujsFFkuyPvnANBVdWWShf7RIhrElJOg9TtuK6QGPrADx8B5zjCPOA74Gi7HdMmlQa5SNyAny+qGElMquw9i2ou4VSZkhaho1Xz9Hn5DprqKBnCLL0fS7JV+5TgmfoMz0R2oEWwFzoa7fz4rFu84AGKq4tidwk8Qq5hJ6XsVnLiaQq1h4etKGBh2wSopMFemI5k8dbS/VK/M+Ue7N01QgnC5FzRrzEw/5+ZTQndnUfpa11LzGJuretHuQYVrDLzbuqtOmNVyEjyziACB3yr8D2MFYaLZutQ9JBa44EuVjQj7w9qBLFk1ceBee/TDxc5hb5Zo+8Q=="
 
@@ -170,10 +174,11 @@ func getSigningContextNamespacePrefixMap(t *testing.T) (ctxMap map[*SigningConte
 			Hash:          crypto.SHA256,
 			SigninigTime:  signingTime,
 		},
-		Canonicalizer: c14N10ExclusiveCanonicalizer,
-		Hash:          crypto.SHA256,
-		KeyStore:      *keyStore,
-		XmlDsigPrefix: "ds",
+		Canonicalizer:    c14N10ExclusiveCanonicalizer,
+		Hash:             crypto.SHA256,
+		KeyStore:         *keyStore,
+		XmlDsigPrefix:    "ds",
+		UseSignatureUuid: false,
 	}
 	ctxMap[ctx] = "lFQkrk5ZfFxGoIkUR2XMWwFbGhv4n6oLw+/KIUM+JcEnVM8ebr47d7lpM2vviBa5zCR/IgK3nB/CIjPcgA0v5KILKp0K9M7PNL5IikxDVu7l1PVcAUaQG7NhMrwNTiY6g5EhLCIkv04q1jTXWCaCyYdRf1IMpgc1LN6v2CfRIl3xfOqUY/cBsp8jRP8LTtU5H7OeNjVmRjrCyUmKgfTnNJOG0oxhadzqs4/MIJgMoz5090k4NXFRM+JW/g/adXMa45kNcLhkyXEH/co/wRN4UsR9Se/X+gh1bFDhOiqyyzveOKCxWACJR8+vF1ao5LWy+kWGkzUCEg81ouqxqWYgOw=="
 
@@ -188,12 +193,53 @@ func getSigningContextNamespacePrefixMap(t *testing.T) (ctxMap map[*SigningConte
 			Hash:          crypto.SHA1,
 			SigninigTime:  signingTime,
 		},
-		Canonicalizer: c14N10ExclusiveCanonicalizer,
-		Hash:          crypto.SHA256,
-		KeyStore:      *keyStore,
-		XmlDsigPrefix: "ds",
+		Canonicalizer:    c14N10ExclusiveCanonicalizer,
+		Hash:             crypto.SHA256,
+		KeyStore:         *keyStore,
+		XmlDsigPrefix:    "ds",
+		UseSignatureUuid: false,
 	}
 	ctxMap[ctx] = "tGaU8GC1mfQgHlJJUznKLIvUEGZqfjp7VyatB71ctAlUMrdqDlzbYAGoFQE5jru+z/OxBvKFiSK9cYP85Y2YXajm6cdnNumtA7nfrBhQoldeoKQZZvqVoPBsL48YzDpBLutnRrqcBzsYiUs8PGpLaciwIKFaHIFEl6H7Z4W4wGsdAn99IFOmeAdo403z6AerYrZgZQeEpiI86Z5OIHbem6lqxf/DPW4BNWYbREVH7srPsU1jGPhZKDInUJJ4iBiuGXWV9O15FE97VDjleQQtB8rC30dZFcFQyv9ML6NPIntwBw+KqXmb8ThKyi3qqD3qIaKDTCecoaJXktvWiRvYMw=="
+
+	return
+}
+
+func getSigningContextUuidMap(t *testing.T) (ctxMap map[*SigningContext]string) {
+
+	ctxMap = make(map[*SigningContext]string)
+
+	keyStore, err := getTestKeyStore()
+	require.NoError(t, err)
+
+	signingTime, err := time.Parse("2006-01-02T15:04:05Z", "2020-01-01T00:00:00Z")
+	require.NoError(t, err)
+
+	c14N10ExclusiveCanonicalizer := dsig.MakeC14N10ExclusiveCanonicalizerWithPrefixList("")
+
+	signatureUuid, _ := uuid.NewUUID()
+	signatureUuid.UnmarshalText([]byte("7837510c-674b-11ee-90e3-000c29c302a8"))
+
+	ctx := &SigningContext{
+		DataContext: SignedDataContext{
+			Canonicalizer: c14N10ExclusiveCanonicalizer,
+			Hash:          crypto.SHA256,
+			IsEnveloped:   true,
+			ReferenceURI:  "#signedData",
+		},
+		PropertiesContext: SignedPropertiesContext{
+			Canonicalizer: c14N10ExclusiveCanonicalizer,
+			Hash:          crypto.SHA256,
+			SigninigTime:  signingTime,
+		},
+		Canonicalizer:    c14N10ExclusiveCanonicalizer,
+		Hash:             crypto.SHA256,
+		KeyStore:         *keyStore,
+		XmlDsigPrefix:    "ds",
+		UseSignatureUuid: true,
+		SignatureUuid:    &signatureUuid,
+	}
+
+	ctxMap[ctx] = "OQzb6KWH5C7++JSqZsuMGf4RAg31hHawGbl6jXbOzUhNutJDxEYKuW6CzhdWAzsPNb04i+Ui+2FKcgJ4yVmPJffgLyVwjVonXTn/T0v22wGgCn8mSj+nVXeD1wodQ50LA/UVaOTOVWMr4TTDRyB+JuInq2zB5MzLNTebesilK+1nl0ou4t0LmzQOCAoKcIriGFAS7vM+wqFxVgyuxNclXmyMOuVZ1qn2hU55MWtjYNp8Ak3wmepXHDUCtwcaOs7TnuAwprBc6ZeODY93gbDfORyZXwTqr1ShOgjcFNu6RcucGFrX4Y54GGSUzq7YAHtU/fGj6D43dkslaUF5MYcSgg=="
 
 	return
 }
@@ -221,6 +267,21 @@ func TestNamespacePrefixSignature(t *testing.T) {
 	signedData := doc.Root()
 
 	ctxMap := getSigningContextNamespacePrefixMap(t)
+
+	for ctx, signatureValue := range ctxMap {
+		testSignature(t, signedData, ctx)
+		testSignatureValue(t, signedData, ctx, signatureValue)
+	}
+}
+
+func TestSignatureUuid(t *testing.T) {
+	doc := etree.NewDocument()
+	err := doc.ReadFromString(testXML)
+	require.NoError(t, err)
+
+	signedData := doc.Root()
+
+	ctxMap := getSigningContextUuidMap(t)
 
 	for ctx, signatureValue := range ctxMap {
 		testSignature(t, signedData, ctx)
@@ -269,7 +330,7 @@ func testSignedInfo(t *testing.T, signedInfo *etree.Element, ctx *SigningContext
 	require.NotEmpty(t, referenceElements)
 	require.Len(t, referenceElements, 2)
 	testReferenceData(t, referenceElements[0], &ctx.DataContext, ctx.XmlDsigPrefix)
-	testReferenceProperties(t, referenceElements[1], &ctx.PropertiesContext, ctx.XmlDsigPrefix)
+	testReferenceProperties(t, referenceElements[1], &ctx.PropertiesContext, ctx.XmlDsigPrefix, ctx.SignatureUuid)
 
 }
 
@@ -309,10 +370,14 @@ func testReferenceData(t *testing.T, referenceElement *etree.Element, ctx *Signe
 	require.NotEmpty(t, digestValue)
 }
 
-func testReferenceProperties(t *testing.T, referenceElement *etree.Element, ctx *SignedPropertiesContext, xmldsigPrefix string) {
+func testReferenceProperties(t *testing.T, referenceElement *etree.Element, ctx *SignedPropertiesContext, xmldsigPrefix string, signatureUuid *uuid.UUID) {
+	idPrefix := ""
+	if signatureUuid != nil {
+		idPrefix = fmt.Sprintf("Signature-%v-", signatureUuid.String())
+	}
 	idAttr := referenceElement.SelectAttr(":" + dsig.URIAttr)
 	require.NotEmpty(t, idAttr)
-	require.Equal(t, "#SignedProperties", idAttr.Value)
+	require.Equal(t, fmt.Sprintf("#%vSignedProperties", idPrefix), idAttr.Value)
 
 	transformsElement := referenceElement.FindElement(xmldsigPrefix + ":" + dsig.TransformsTag)
 	require.NotEmpty(t, transformsElement)
@@ -346,6 +411,10 @@ func testKeyInfo(t *testing.T, keyInfo *etree.Element, ctx *SigningContext) {
 }
 
 func testObject(t *testing.T, keyInfo *etree.Element, ctx *SigningContext) {
+	idPrefix := ""
+	if ctx.UseSignatureUuid {
+		idPrefix = fmt.Sprintf("Signature-%v-", ctx.SignatureUuid.String())
+	}
 	xmldsigPrefix := ctx.XmlDsigPrefix
 	qualifyingProperties := keyInfo.FindElement(Prefix + ":" + QualifyingPropertiesTag)
 	require.NotEmpty(t, qualifyingProperties)
@@ -357,14 +426,14 @@ func testObject(t *testing.T, keyInfo *etree.Element, ctx *SigningContext) {
 
 	targetAttr := qualifyingProperties.SelectAttr(":" + targetAttr)
 	require.NotEmpty(t, targetAttr)
-	require.Equal(t, "#Signature", targetAttr.Value)
+	require.Equal(t, fmt.Sprintf("#%vSignature", idPrefix), targetAttr.Value)
 
 	signedProperties := qualifyingProperties.FindElement(Prefix + ":" + SignedPropertiesTag)
 	require.NotEmpty(t, signedProperties)
 
 	idAttr := signedProperties.SelectAttr(":" + "Id")
 	require.NotEmpty(t, idAttr)
-	require.Equal(t, "SignedProperties", idAttr.Value)
+	require.Equal(t, fmt.Sprintf("%vSignedProperties", idPrefix), idAttr.Value)
 
 	signedSignatureProperties := signedProperties.FindElement(Prefix + ":" + SignedSignaturePropertiesTag)
 	require.NotEmpty(t, signedSignatureProperties)

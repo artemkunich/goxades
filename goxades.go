@@ -76,6 +76,7 @@ type MemoryX509KeyStore struct {
 	PrivateKey *rsa.PrivateKey
 	Cert       *x509.Certificate
 	CertBinary []byte
+	CertChain  []*x509.Certificate
 }
 
 // GetKeyPair func
@@ -156,7 +157,7 @@ func CreateSignature(signedData *etree.Element, ctx *SigningContext) (*etree.Ele
 	}
 
 	signatureValue := createSignatureValue(signatureValueText, ctx.XmlDsigPrefix)
-	keyInfo := createKeyInfo(base64.StdEncoding.EncodeToString(ctx.KeyStore.CertBinary), ctx.XmlDsigPrefix)
+	keyInfo := createKeyInfo(&ctx.KeyStore, ctx.XmlDsigPrefix)
 	object := createObject(signedProperties, ctx)
 
 	signatureIdPrefix, err := createSignatureIdPrefix(ctx)
@@ -308,19 +309,29 @@ func createSignatureValue(base64Signature string, xmlDsigPrefix string) *etree.E
 	return &signatureValue
 }
 
-func createKeyInfo(base64Certificate string, xmlDsigPrefix string) *etree.Element {
+func createKeyInfo(keyStore *MemoryX509KeyStore, xmlDsigPrefix string) *etree.Element {
 
 	x509Cerificate := etree.Element{
 		Space: xmlDsigPrefix,
 		Tag:   dsig.X509CertificateTag,
 	}
-	x509Cerificate.SetText(base64Certificate)
+	x509Cerificate.SetText(base64.StdEncoding.EncodeToString(keyStore.CertBinary))
 
 	x509Data := etree.Element{
 		Space: xmlDsigPrefix,
 		Tag:   dsig.X509DataTag,
 		Child: []etree.Token{&x509Cerificate},
 	}
+
+	for _, cert := range keyStore.CertChain {
+		x509CerificateChain := etree.Element{
+			Space: xmlDsigPrefix,
+			Tag:   dsig.X509CertificateTag,
+		}
+		x509Cerificate.SetText(base64.StdEncoding.EncodeToString(cert.Raw))
+		x509Data.AddChild(&x509CerificateChain)
+	}
+
 	keyInfo := etree.Element{
 		Space: xmlDsigPrefix,
 		Tag:   dsig.KeyInfoTag,
